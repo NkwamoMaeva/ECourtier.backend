@@ -1,0 +1,27 @@
+{
+  "name": "e-courtier",
+  "version": "0.0.23",
+  "scripts": {
+    "deployd": "dpd ./api.mongodb/app.dpd"
+  },
+  "engines": {
+    "node": ">= 4.0"
+  },
+  "dependencies": {
+    "deployd": "^1.0.0",
+    "dpd-clientlib": "^0.0.1",
+    "dpd-dashboard": "^0.0.1",
+    "mv": "^2.1.1",
+    "node-xlsx": "^0.15.0",
+    "restify": "^8.3.3",
+    "restify-cors-middleware": "^1.1.1",
+    "xlsx": "^0.14.3"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.4.4",
+    "@babel/core": "^7.4.5",
+    "@babel/node": "^7.4.5",
+    "@babel/preset-env": "^7.4.5",
+    "@babel/register": "^7.4.4"
+  }
+}
