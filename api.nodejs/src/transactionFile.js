@@ -7,8 +7,19 @@ export default class TransactionFile {
     constructor(filePath) {
         this.filePath = filePath;
         this.data = [];
-        this.column_indexes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'];
-        this.key_words = ['client', 'reférence', 'contrat', 'code', 'bordéreau', 'commission', 'dû', 'produit', 'date', 'taux'];
+        this.column_indexes = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z','A1', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'H1', 'I1', 'J1', 'K1', 'L1', 'M1', 'N1', 'O1', 'P1', 'Q1', 'R1', 'S1', 'T1', 'U1', 'V1', 'W1', 'X1', 'Y1', 'Z1'];
+        this.key_words = [
+            'client', 'customer', 'clients', 'customers', 'nom', 'prénom', 'name',
+            'reférence','reference', 'reférences', 'references', 'désignation', 'ref',
+            'contrat', 'contrats', 'contract', 'contracts', 'ref_contrat',
+            'code', 'id', 'numéro', 'numero', 'number',
+            'bordéreau', 'bordéreaux',
+            'commission', 'commissions', 'comm',
+            'produit', 'product', 'support',
+            'date', 'Encours', 'en cours',
+            'dû','taux', 'montant', 'moyenne', 'parts', 'quittance', 'prime', 'assiette', 'tax'
+
+        ];
 
         this.getAllDatas();
         this.reindexObjects();
