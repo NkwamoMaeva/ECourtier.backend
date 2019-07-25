@@ -26,6 +26,7 @@ export default class TransactionFile {
         this.addPropertiesToObjects();
         this.setHeaders();
         this.validateLines();
+        this.standardize();
     }
 
 
@@ -228,6 +229,31 @@ export default class TransactionFile {
             if ((number - 2 === nbr || number + 2 === nbr || number - 1 === nbr || number + 1 === nbr || number === nbr) && elt.hasOwnProperty('HEAD') && elt['HEAD'] === false)
                 elt['VALID'] = true
         })
+    }
+
+    standardize(){
+        // Si on a pas en entrée une collection ou si elle est vide on retourne []
+        if (this.data === undefined ||this.data.length < 1)
+            this.data =  [];
+
+        let number = 0
+        this.data.forEach(elt=>{
+            if (Object.keys(elt).length > number) number = Object.keys(elt).length
+
+        })
+
+        this.data.forEach(elt=>{
+            let difference = number - Object.keys(elt).length
+            if (Object.keys(elt).length <= number) {
+                for (let i = 0; i < difference; i++){
+                    let index = this.column_indexes[Object.keys(elt).length - 3 + 1]
+                    if (difference === 1)index =  this.column_indexes[Object.keys(elt).length - 3]
+                    elt[index] = '#'
+                }
+            }
+
+        })
+
     }
 
 

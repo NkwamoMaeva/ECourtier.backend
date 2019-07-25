@@ -2,7 +2,6 @@ let request = require('request');
 let fs = require('fs');
 
 export default class PdfToExcel {
-    fileOutputTarget = null;
 
     constructor(filePath, fileOutput){
         this.filePath = filePath;
@@ -31,6 +30,7 @@ export default class PdfToExcel {
         let form = this.requestBuilder().form()
         form.append('file',fs.createReadStream(this.filePath))
     }
+
 
 
 }
