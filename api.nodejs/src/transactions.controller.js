@@ -1,6 +1,6 @@
 import mv from 'mv';
 import TransactionFile from './transactionFile';
-import PdfToExcel from "./PdfToExcel";
+import PDF from "./utility.pdf";
 
 export default class TransactionsController {
 
@@ -23,10 +23,8 @@ export default class TransactionsController {
         const extension = names[names.length - 1];
 
 
-
-
         let newFilePath = `data.files/${this.insurer}/${this.type}_${new Date().getTime()}.${extension}`;
-        //console.log('newFilePath', newFilePath);
+
 
         return new Promise((resolve, reject) => {
             mv(this.file.path, newFilePath, {
@@ -34,13 +32,9 @@ export default class TransactionsController {
             }, (err, result)=> {
                 if (err)
                     reject(err);
-                else {
-                    if (extension.toLowerCase() === 'pdf'){
-                        let convertedFileTarget = newFilePath.replace(extension,'xlsx');
-                        const pdfToExcel = new PdfToExcel(newFilePath,convertedFileTarget);
-                        newFilePath = pdfToExcel.fileOutputTarget;
-                    }
-                    const xlsx_file = new TransactionFile(newFilePath);
+
+                const xlsxTransaction = (filePath) => {
+                    const xlsx_file = new TransactionFile(filePath);
                     let timeNumber = String(new Date().getTime());
                     let pos = timeNumber.length - 6;
                     resolve({
@@ -51,6 +45,18 @@ export default class TransactionsController {
                         reference: "".concat(this.type, timeNumber.substring(pos))
                     });
                 }
+
+                if (extension.toLowerCase() === 'pdf'){
+                    PDF.toXLSX(newFilePath, null)
+                        .then(outFilePath => {
+                            newFilePath = outFilePath;
+                            xlsxTransaction(newFilePath);
+                        })
+                        .catch(reason => reject(reason));
+                } else {
+                    xlsxTransaction(newFilePath);
+                }
+
             });
         });
 
