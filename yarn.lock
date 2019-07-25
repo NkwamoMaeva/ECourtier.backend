@@ -668,9 +668,9 @@
     to-fast-properties "^2.0.0"
 
 "@netflix/nerror@^1.0.0":
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/@netflix/nerror/-/nerror-1.1.0.tgz#0ab9bdf0c0de6fb565c91af7744099bf8ebe21ba"
-  integrity sha512-VGB1t59S6j4ZuIaYc7PAtIQ1GgF8xPtwq/pl+VFoyjMP1jDcPgMWcLH9A5ZQEmj5p1CQ/ycN7kReKEny/CjJ8Q==
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/@netflix/nerror/-/nerror-1.1.1.tgz#deef87ff6486f0175b5e5ee921267928233bbdb5"
+  integrity sha512-sPUiwZ9LjNDZSNpIFWHjCjDWfcyRuXW+36gGUelgXa3B4VirvXEf8lL1yEQqLsX85EuqzeQI+eEr/dbP5FFoWg==
   dependencies:
     assert-plus "^1.0.0"
     extsprintf "^1.4.0"
@@ -1623,9 +1623,9 @@ find-cache-dir@^2.0.0:
     pkg-dir "^3.0.0"
 
 find-my-way@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/find-my-way/-/find-my-way-2.0.1.tgz#965aa7cacac2362d47d5d7ce219f51bf76216af7"
-  integrity sha512-c+YnWk4LKcWSNu743wfoqNOZTYQ6kZ/kzZCjALGblLpzbEAv3INakGMZ1K/by+Wmf/NP3+3LpOQMOFw6/q52wQ==
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/find-my-way/-/find-my-way-2.1.0.tgz#dc9bfe2ab12ce8f965f489794134789e8fd56881"
+  integrity sha512-Hdx6ctcrzkZH5y9EREHtXryXAgc5Bc8z5Cvoa61y9kaoYj2KU4yXD6h8b6u0NUkYPVmQQeRdf0AtG1kQxQ+ukQ==
   dependencies:
     fast-decode-uri-component "^1.0.0"
     safe-regex2 "^2.0.0"
@@ -2960,7 +2960,7 @@ repeat-string@^1.6.1:
   resolved "https://registry.yarnpkg.com/repeat-string/-/repeat-string-1.6.1.tgz#8dcae470e1c88abc2d600fff4a776286da75e637"
   integrity sha1-jcrkcOHIirwtYA//Sndihtp15jc=
 
-request@2.88.0:
+request@2.88.0, request@^2.88.0:
   version "2.88.0"
   resolved "https://registry.yarnpkg.com/request/-/request-2.88.0.tgz#9c2fca4f7d35b592efe57c7f0a55e81052124fef"
   integrity sha512-NAqBSrijGLZdM0WZNsInLJpkJokL72XYjUpnB0iwsRgxh7dB6COrHnTBNwN0E+lHDAJzu7kLAkDeY08z2/A0hg==
