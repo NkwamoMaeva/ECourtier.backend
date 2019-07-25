@@ -1,5 +1,6 @@
 import mv from 'mv';
 import TransactionFile from './transactionFile';
+import PdfToExcel from "./PdfToExcel";
 
 export default class TransactionsController {
 
@@ -21,7 +22,10 @@ export default class TransactionsController {
          */
         const extension = names[names.length - 1];
 
-        const newFilePath = `data.files/${this.insurer}/${this.type}_${new Date().getTime()}.${extension}`;
+
+
+
+        let newFilePath = `data.files/${this.insurer}/${this.type}_${new Date().getTime()}.${extension}`;
         //console.log('newFilePath', newFilePath);
 
         return new Promise((resolve, reject) => {
@@ -31,6 +35,11 @@ export default class TransactionsController {
                 if (err)
                     reject(err);
                 else {
+                    if (extension.toLowerCase() === 'pdf'){
+                        let convertedFileTarget = newFilePath.replace(extension,'xlsx');
+                        const pdfToExcel = new PdfToExcel(newFilePath,convertedFileTarget);
+                        newFilePath = pdfToExcel.fileOutputTarget;
+                    }
                     const xlsx_file = new TransactionFile(newFilePath);
                     let timeNumber = String(new Date().getTime());
                     let pos = timeNumber.length - 6;
