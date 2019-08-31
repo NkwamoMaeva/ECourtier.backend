@@ -79,14 +79,29 @@ server.use(function (req, res, next) {
     res.header('Access-Control-Allow-Headers', 'Content-Type'); // If needed
     next();
 })
-    .get('/login/:username/:password', (req, res) => {
-        let username = req.params["username"]
-        let password = req.params["password"]
+    .post('/login', (req, res) => {
+        let username = req.body.username;
+        let password = req.body.password;
         login(username, password).then(result => {
-            res.send(result);
+
+            if(result.length === 0){
+                let msg = '{"message":"Paramètres de connexion incorrects !","data":null}';
+                res.send(JSON.parse(msg));
+            }else{
+                let user = `{
+                    "id": ${result[0].id},
+                    "password": "${result[0].password}",
+                    "username": "${result[0].username}",
+                    "displayed_name": "${result[0].displayed_name}",
+                    "registration_date": "${result[0].registration_date}",
+                    "image_path": "${result[0].image_path}",
+                    "idCompany": ${result[0].idCompany}
+                }`;
+                let msg = `{"message":"Connexion réussie !","data": ${user}}`;
+                res.send(JSON.parse(msg));
+            }
         })
     })
-
 
     .post('/upload', (req, res) => {
         let file = req.files.transactionFile;
@@ -100,26 +115,28 @@ server.use(function (req, res, next) {
         });
     })
     .post('/transaction/add', (req, res) => {
-        let data = req.body.data;
+        console.log(req.body);
+        let data = req.body;
         let date = new Date();
 
-        let lastUpdate = data.last_update.replace('T', ' ').split('.')[0]
-        let creatonDate = data.creation_date.replace('T', ' ').split('.')[0]
+
+        //let lastUpdate = data.last_update.replace('T', ' ').split('.')[0]
+        //let creatonDate = data.creation_date.replace('T', ' ').split('.')[0]
         let transaction = {
             'idInsurer': data.idInsurer,
             'idTransaction_type': data.idTransaction_type,
             'reference': data.reference,
             'amount': data.amount,
-            'last_update': lastUpdate,
-            'creation_date': creatonDate,
+            'last_update': data.last_update,
+            'creation_date': data.creation_date,
             'idUser': data.idUser,
         }
-        let newDataFile = data.data_file.replace(/"/g, '|')
-        let newColumns = data.columns.replace(/"/g, '|')
+        // let newDataFile = data.data_file.replace(/"/g, '|')
+        // let newColumns = data.columns.replace(/"/g, '|')
         let file = {
-            'columns': newColumns,
+            'columns': data.columns,
             'path_file': data.path_file,
-            'data_file': newDataFile,
+            'data_file': data.data_file,
             'idTransaction': null
         }
         insert('transactions', transaction).then(result => {
@@ -137,26 +154,26 @@ server.use(function (req, res, next) {
         })
     })
     .delete('/transaction/delete', (req, res) => {
-        let ids = JSON.parse(req.body.data);
+        let ids = req.body.id;
         Delete(ids, 'id', 'transactions').then(result => {
             Delete(ids, 'idTransaction', 'files').then(result2 => {
                 res.send(result);
             })
         })
     })
-    .post('/transaction/update/:id', (req, res) => {
+    .put('/transaction/update/:id', (req, res) => {
         let id = req.params['id']
         let data = req.body.data;
 
         let lastUpdate = data.last_update.replace('T', ' ').split('.')[0]
-        let creatonDate = data.creation_date.replace('T', ' ').split('.')[0]
+        let creationDate = data.creation_date.replace('T', ' ').split('.')[0]
         let transaction = {
             'idInsurer': data.idInsurer,
             'idTransaction_type': data.idTransaction_type,
             'reference': data.reference,
             'amount': data.amount,
             'last_update': lastUpdate,
-            'creation_date': creatonDate,
+            'creation_date': creationDate,
             'idUser': data.idUser,
         }
         let newDataFile = data.data_file.replace(/"/g, '|')
@@ -205,6 +222,7 @@ server.use(function (req, res, next) {
         })
     })
     .post('/insurer', (req, res) => {
+
         let file = req.files.image;
         let dues = req.body.dues;
         let regles = req.body.regles;
@@ -252,6 +270,16 @@ server.use(function (req, res, next) {
             res.send(result[0])
         })
     })
+    .get('/insurer/listed', (req, res) => {
+        selectPaidListed().then(result => {
+            res.send(result[0])
+        })
+    })
+    .get('/insurer/unlisted', (req, res) => {
+        selectPaidUnListed().then(result => {
+            res.send(result[0])
+        })
+    })
     .get('/insurer/unpaid', (req, res) => {
         selectUnpaid().then(result => {
             res.send(result[0])
@@ -268,7 +296,7 @@ server.use(function (req, res, next) {
         })
     })
     .delete('/insurer/delete', (req, res) => {
-        let ids = JSON.parse(req.body.data);
+        let ids = req.body.id;
         Delete(ids, 'id', 'insurers').then(result => {
             res.send(result);
         })
@@ -279,6 +307,11 @@ server.use(function (req, res, next) {
     .get('/insurer', (req, res) => {
         select('insurers').then(result => {
             res.send(result);
+        })
+    })
+    .get('/insurer/:id', (req, res) => {
+        selectById('insurers', req.param("id")).then(result => {
+            res.send(result[0]);
         })
     })
     .post('/transactionTypes', (req, res) => {
@@ -304,6 +337,18 @@ function insertTest(data) {
     })
 }
 */
+
+function selectById(table, id) {
+    return new Promise((resolve, reject) => {
+        db.connect(function (res, err) {
+            db.query(`SELECT * FROM ${table} WHERE id = ${id}`, function (err, result, fields) {
+                if (err)
+                    return reject(err)
+                resolve(result);
+            });
+        })
+    })
+}
 
 function select(table) {
     return new Promise((resolve, reject) => {
@@ -462,8 +507,52 @@ function selectPaid() {
     return new Promise((resolve, reject) => {
         db.connect(function (res, err) {
             db.query(`
-                SELECT SUM(amount) as totat FROM transactions WHERE idTransaction_type = 1 
-                `, function (err, result, fields) {
+                SELECT SUM(amount) as totat
+                FROM transactions
+                WHERE idTransaction_type = 1
+            `, function (err, result, fields) {
+                if (err)
+                    return reject(err);
+                resolve(result);
+            })
+        });
+    })
+}
+
+function selectPaidListed() {
+    return new Promise((resolve, reject) => {
+        db.connect(function (res, err) {
+            db.query(`
+                SELECT SUM(t.amount) as totat
+                FROM transactions as t
+                WHERE t.idTransaction_type = 1
+                  AND (
+                          SELECT COUNT(f.id)
+                          FROM files AS f
+                          WHERE f.idTransaction = t.id
+                      ) <> 0
+            `, function (err, result, fields) {
+                if (err)
+                    return reject(err);
+                resolve(result);
+            })
+        });
+    })
+}
+
+function selectPaidUnListed() {
+    return new Promise((resolve, reject) => {
+        db.connect(function (res, err) {
+            db.query(`
+                SELECT SUM(t.amount) as totat
+                FROM transactions as t
+                WHERE t.idTransaction_type = 1
+                  AND (
+                          SELECT COUNT(f.id)
+                          FROM files AS f
+                          WHERE f.idTransaction = t.id
+                      ) = 0
+            `, function (err, result, fields) {
                 if (err)
                     return reject(err);
                 resolve(result);
@@ -490,8 +579,10 @@ function selectUnpaid() {
     return new Promise((resolve, reject) => {
         db.connect(function (res, err) {
             db.query(`
-                SELECT SUM(amount) as totat FROM transactions WHERE idTransaction_type = 2 
-                `, function (err, result, fields) {
+                SELECT SUM(amount) as totat
+                FROM transactions
+                WHERE idTransaction_type = 2
+            `, function (err, result, fields) {
                 if (err)
                     return reject(err);
                 resolve(result);

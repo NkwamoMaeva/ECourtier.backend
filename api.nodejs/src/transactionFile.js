@@ -54,8 +54,8 @@ export default class TransactionFile {
 
             //On rajoute le nombre de ligne et le nombre de colonnes
             _datas.forEach((elt)=>{
-                elt['PAGE_ACTUELLE'] = i+1
-                elt['PAGES_TOTALES'] = wb.SheetNames.length
+                elt['PAGE'] = i+1
+                elt['PAGES'] = wb.SheetNames.length
             })
 
             _datas.forEach((elt)=>{
@@ -103,7 +103,7 @@ export default class TransactionFile {
                 // On verifie si la propriete n'est pas nulle
                 if (elt.hasOwnProperty(prop)) {
                     // Et a ajoute la valeur de la propriété a un objet
-                    if (prop === 'PAGE_ACTUELLE' || prop === 'PAGES_TOTALES') {
+                    if (prop === 'PAGE' || prop === 'PAGES') {
                         _obj[prop] = elt[prop]
                     }else{
                         _obj[this.column_indexes[i]] = elt[prop]
