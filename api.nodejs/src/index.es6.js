@@ -47,8 +47,8 @@ import bodyparser from 'body-parser'
 //     credentials: false
 // });
 const server = express()
-    // server.pre(cors.preflight);
-    // server.use(cors.actual);
+// server.pre(cors.preflight);
+// server.use(cors.actual);
 
 //This plugin deduplicates extra slashes found in the URL.
 // server.pre(restify.plugins.pre.dedupeSlashes());
@@ -66,25 +66,29 @@ const routes = {
 
 let db = mysql.createConnection(config.ldb)
 
-server.use(bodyparser.urlencoded({ limit: '50mb', extended: true }));
+server.use(bodyparser.urlencoded({limit: '50mb', extended: true}));
 server.use(bodyparser.json());
 server.use(bodyparser());
 server.use(fileUpload({
-    limits: { fileSize: 50 * 1024 * 1024 },
+    limits: {fileSize: 50 * 1024 * 1024},
     useTempFiles: true,
 }));
-server.use(function(req, res, next) {
-        res.header('Access-Control-Allow-Origin', "*");
-        res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE'); // If needed
-        res.header('Access-Control-Allow-Headers', 'Content-Type'); // If needed
-        next();
-    }).get('/login/:username/:password', (req, res) => {
+server.use(function (req, res, next) {
+    res.header('Access-Control-Allow-Origin', "*");
+    res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE'); // If needed
+    res.header('Access-Control-Allow-Headers', 'Content-Type'); // If needed
+    next();
+})
+    .get('/login/:username/:password', (req, res) => {
         let username = req.params["username"]
         let password = req.params["password"]
         login(username, password).then(result => {
             res.send(result);
         })
-    }).post('/upload', (req, res) => {
+    })
+
+
+    .post('/upload', (req, res) => {
         let file = req.files.transactionFile;
         let insurer = req.body.insurer;
         let idInsurer = req.body.idInsurer;
@@ -134,8 +138,8 @@ server.use(function(req, res, next) {
     })
     .post('/transaction/delete', (req, res) => {
         let ids = JSON.parse(req.body.data);
-        deleteTransaction(ids, 'id', 'transactions').then(result => {
-            deleteTransaction(ids, 'idTransaction', 'files').then(result2 => {
+        Delete(ids, 'id', 'transactions').then(result => {
+            Delete(ids, 'idTransaction', 'files').then(result2 => {
                 res.send(result);
             })
         })
@@ -178,9 +182,32 @@ server.use(function(req, res, next) {
             res.send(result[0]);
         })
     })
+
+    .get('/transaction/getByInsurer/:id', (req, res) => {
+        let id = req.params["idInsurer"]
+        selectTransactionByInsurerId(id).then(result => {
+            res.send(result);
+        })
+    })
+
+    .get('/transaction/getByType/:id', (req, res) => {
+        let id = req.params["idType"]
+        selectTransactionByType(id).then(result => {
+            res.send(result);
+        })
+    })
+
+    .get('/transaction/getByDate/:startDate/:endDate', (req, res) => {
+        let startDate = req.params["startDate"];
+        let endDate = req.params["endDate"];
+        selectTransactionByDate(startDate,endDate).then(result => {
+            res.send(result);
+        })
+    })
+    
     .get('/transaction/:startDate/:endDate', (req, res) => {
-        let startDate = req.param("startDate")
-        let endDate = req.param("endDate")
+        let startDate = req.param("startDate");
+        let endDate = req.param("endDate");
         selectByPeriod(startDate, endDate).then(result => {
             res.send(result);
         })
@@ -206,6 +233,73 @@ server.use(function(req, res, next) {
         //     res.send(result);
         // })
     })
+    .put('/insurer/update/:id', (req, res) => {
+        let id = req.param("id");
+        let short_name = req.param("short_name");
+        let description = req.param("description");
+        let image_path = req.param("image_path");
+        let dues = req.param("dues");
+        let regles = req.param("regles");
+
+        return new Promise((resolve, reject) => {
+            db.connect(function (res, err) {
+                db.query(`
+                UPDATE insurers SET short_name = ${short_name},
+                                    description = ${description},
+                                    image_path = ${image_path},
+                                    dues = ${dues},
+                                    regles = ${regles}
+                                WHERE id = ${id}
+                `);
+            })
+        })
+
+    })
+    .get('/insurer/paid', (req, res) => {
+        return new Promise((resolve, reject) => {
+            db.connect(function (res, err) {
+                db.query(`
+                SELECT SUM(amount) FROM transactions WHERE idTransaction_type = 1 
+                `, function (err, result, fields) {
+                    if (err)
+                        return reject(err);
+                    resolve(result);
+                })
+            });
+        })
+    })
+    .get('/insurer/paid/:id', (req, res) => {
+        return new Promise((resolve, reject) => {
+            db.connect(function (res, err) {
+                db.query(`
+                SELECT SUM(amount) FROM transactions WHERE idTransaction_type = 1 
+                `, function (err, result, fields) {
+                    if (err)
+                        return reject(err);
+                    resolve(result);
+                })
+            });
+        })
+    })
+    .get('/insurer/unpaid/:id', (req, res) => {
+        return new Promise((resolve, reject) => {
+            db.connect(function (res, err) {
+                db.query(`
+                SELECT SUM(amount) FROM transactions WHERE idInsurer = ${req.param("id")} AND idTransaction_type = 2 
+                `, function (err, result, fields) {
+                    if (err)
+                        return reject(err);
+                    resolve(result);
+                })
+            });
+        })
+    })
+    .delete('/insurer/delete', (req, res) => {
+        let ids = JSON.parse(req.body.data);
+        Delete(ids, 'id', 'insurers').then(result => {
+            res.send(result);
+        })
+    })
     .post('/insurer/:id', (req, res) => {
         let id = req.param("id")
     })
@@ -217,15 +311,17 @@ server.use(function(req, res, next) {
     .post('/transactionTypes', (req, res) => {
         select('transaction_types')
     })
-    .listen(9001, function() {});
+    .listen(9001, function () {
+        console.log('Service started at port 9001')
+    });
 
 function insertTest(data) {
     return new Promise((resolve, reject) => {
         let keys = Object.keys(data);
 
-        db.connect(function(res, err) {
+        db.connect(function (res, err) {
             let query = `INSERT INTO test (data) VALUE("${data}")`
-            db.query(query, function(err, result, fields) {
+            db.query(query, function (err, result, fields) {
                 if (err)
                     return reject(err)
                 resolve(result)
@@ -236,8 +332,8 @@ function insertTest(data) {
 
 function select(table) {
     return new Promise((resolve, reject) => {
-        db.connect(function(res, err) {
-            db.query(`SELECT * FROM ${table}`, function(err, result, fields) {
+        db.connect(function (res, err) {
+            db.query(`SELECT * FROM ${table}`, function (err, result, fields) {
                 if (err)
                     return reject(err)
                 resolve(result);
@@ -248,14 +344,14 @@ function select(table) {
 
 function alterAssureur(fieldToUpdate, newValue, id) {
     return new Promise((resolve, reject) => {
-        db.connect(function(res, err) {
+        db.connect(function (res, err) {
             db.query(
                 `
               UPDATE insurers
               SET ${fieldToUpdate} = ${newValue}
               WHERE id = ${id}
             `,
-                function(err, result, fields) {
+                function (err, result, fields) {
                     if (err)
                         return reject(err)
                     resolve(result);
@@ -268,7 +364,7 @@ function alterAssureur(fieldToUpdate, newValue, id) {
 function updateAll(table, elt, referenceField, referenceValue) {
     let keys = Object.keys(elt);
     return new Promise((resolve, reject) => {
-        db.connect(function(res, err) {
+        db.connect(function (res, err) {
             let query = `UPDATE ${table} SET `
             keys.forEach(element => {
                 query += `${element} = "${elt[element]}", `
@@ -276,7 +372,7 @@ function updateAll(table, elt, referenceField, referenceValue) {
             query = query.slice(0, query.length - 2)
             query += ` WHERE ${referenceField} = "${referenceValue}"`
             console.log(query)
-            db.query(query, function(err, result, fields) {
+            db.query(query, function (err, result, fields) {
                 if (err)
                     return reject(err)
                 resolve(result)
@@ -287,18 +383,23 @@ function updateAll(table, elt, referenceField, referenceValue) {
 
 function selectAllTransaction() {
     return new Promise((resolve, reject) => {
-        db.connect(function(res, err) {
+        db.connect(function (res, err) {
             db.query(`
-                SELECT 
-                t.id, t.reference, t.creation_date, t.amount,
-                t.last_update, t.idUser, t.idTransaction_type,
-                t.idInsurer, i.short_name,
-                f.path_file
-                FROM transactions t
-                JOIN insurers i ON i.id = t.idInsurer
-                JOIN files f ON f.idTransaction = t.id
+                        SELECT t.id,
+                               t.reference,
+                               t.creation_date,
+                               t.amount,
+                               t.last_update,
+                               t.idUser,
+                               t.idTransaction_type,
+                               t.idInsurer,
+                               i.short_name,
+                               f.path_file
+                        FROM transactions t
+                                 JOIN insurers i ON i.id = t.idInsurer
+                                 JOIN files f ON f.idTransaction = t.id
                 `,
-                function(err, result, fields) {
+                function (err, result, fields) {
                     if (err)
                         return reject(err)
                     resolve(result);
@@ -309,7 +410,7 @@ function selectAllTransaction() {
 
 function selectTransactionById(id) {
     return new Promise((resolve, reject) => {
-        db.connect(function(res, err) {
+        db.connect(function (res, err) {
             db.query(`
                 SELECT 
                 t.id, t.reference, t.creation_date, t.amount,
@@ -323,7 +424,7 @@ function selectTransactionById(id) {
                 JOIN files f ON f.idTransaction = t.id
                 WHERE t.id = "${id}"
                 `,
-                function(err, result, fields) {
+                function (err, result, fields) {
                     if (err)
                         return reject(err)
                     resolve(result);
@@ -332,14 +433,89 @@ function selectTransactionById(id) {
     })
 }
 
-function deleteTransaction(ids, reference, table) {
+function selectTransactionByInsurerId(id) {
     return new Promise((resolve, reject) => {
-        db.connect(function(res, err) {
+        db.connect(function (res, err) {
+            db.query(`
+                SELECT 
+                t.id, t.reference, t.creation_date, t.amount,
+                t.last_update, t.idUser, t.idTransaction_type,
+                t.idInsurer, i.short_name,
+                f.path_file,
+                f.columns,
+                f.data_file
+                FROM transactions t
+                JOIN insurers i ON i.id = t.idInsurer
+                JOIN files f ON f.idTransaction = t.id
+                WHERE t.idInsurer = "${id}"
+                `,
+                function (err, result, fields) {
+                    if (err)
+                        return reject(err)
+                    resolve(result);
+                });
+        })
+    })
+}
+
+function selectTransactionByType(id) {
+    return new Promise((resolve, reject) => {
+        db.connect(function (res, err) {
+            db.query(`
+                SELECT 
+                t.id, t.reference, t.creation_date, t.amount,
+                t.last_update, t.idUser, t.idTransaction_type,
+                t.idInsurer, i.short_name,
+                f.path_file,
+                f.columns,
+                f.data_file
+                FROM transactions t
+                JOIN insurers i ON i.id = t.idInsurer
+                JOIN files f ON f.idTransaction = t.id
+                WHERE t.idTransaction_type = "${id}"
+                `,
+                function (err, result, fields) {
+                    if (err)
+                        return reject(err)
+                    resolve(result);
+                });
+        })
+    })
+}
+
+function selectTransactionByDate(startDate,endDate) {
+    return new Promise((resolve, reject) => {
+        db.connect(function (res, err) {
+            db.query(`
+                SELECT 
+                t.id, t.reference, t.creation_date, t.amount,
+                t.last_update, t.idUser, t.idTransaction_type,
+                t.idInsurer, i.short_name,
+                f.path_file,
+                f.columns,
+                f.data_file
+                FROM transactions t
+                JOIN insurers i ON i.id = t.idInsurer
+                JOIN files f ON f.idTransaction = t.id
+                WHERE t.creation_date >= "${startDate}" AND t.creation_date <= "${endDate}"
+                `,
+                function (err, result, fields) {
+                    if (err)
+                        return reject(err)
+                    resolve(result);
+                });
+        })
+    })
+}
+
+function Delete(ids, reference, table) {
+    return new Promise((resolve, reject) => {
+        db.connect(function (res, err) {
             db.query(`
                 DELETE FROM ${table} 
                 WHERE ${reference} IN (${ids})
                 `,
-                function(err, result, fields) {
+                function (err, result, fields) {
                     if (err)
                         return reject(err)
                     resolve(result);
@@ -352,7 +528,7 @@ function insert(table, data) {
     return new Promise((resolve, reject) => {
         let keys = Object.keys(data);
 
-        db.connect(function(res, err) {
+        db.connect(function (res, err) {
             let query = `INSERT INTO ${table} (id`
             keys.forEach(element => {
                 query += `, ${element}`
@@ -363,7 +539,7 @@ function insert(table, data) {
                 query += `, "${data[element]}"`
             });
             query += `)`
-            db.query(query, function(err, result, fields) {
+            db.query(query, function (err, result, fields) {
                 if (err)
                     return reject(err)
                 resolve(result)
@@ -372,10 +548,9 @@ function insert(table, data) {
     })
 }
 
-
 function selectByPeriod(startDate, endDate) {
     return new Promise((resolve, reject) => {
-        db.connect(function(res, err) {
+        db.connect(function (res, err) {
             db.query(`
             SELECT 
             t.id, t.reference, t.creation_date, t.amount,
@@ -385,7 +560,7 @@ function selectByPeriod(startDate, endDate) {
             JOIN insurers i ON i.id = t.idInsurer
             WHERE creation_date BETWEEN "${startDate}" AND "${endDate}"
             `,
-                function(err, result, fields) {
+                function (err, result, fields) {
                     if (err)
                         return reject(err)
                     resolve(result)
@@ -396,9 +571,9 @@ function selectByPeriod(startDate, endDate) {
 
 function login(username, password) {
     return new Promise((resolve, reject) => {
-        db.connect(function(res, err) {
+        db.connect(function (res, err) {
             db.query(`SELECT * FROM users WHERE username = "${username}" AND password = "${password}"`,
-                function(err, result, fields) {
+                function (err, result, fields) {
                     if (err) {
                         return reject(err)
                     }

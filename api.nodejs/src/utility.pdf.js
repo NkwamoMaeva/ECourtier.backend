@@ -2,7 +2,7 @@ let request = require('request');
 let fs = require('fs');
 const path = require('path');
 
-const API_URL = 'https://pdftables.com/api?key=x64rdvx2f0q6&format=xlsx-single';
+const API_URL = 'https://pdftables.com/api?key=1nda6sg80tjv&format=xlsx-multiple';
 
 export default class PDF {
 

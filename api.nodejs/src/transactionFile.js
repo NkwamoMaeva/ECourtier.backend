@@ -41,11 +41,28 @@ export default class TransactionFile {
         // On ouvre un stream vers le fichier
         let wb = xlsx.readFile(this.filePath, {cellDates: true});
 
-        // On selectionne la feuille de calcul
-        let ws = wb.Sheets[wb.SheetNames[0]];
+        let datas = []
+        for (let i = 0; i < wb.SheetNames.length; i++){
+            // On selectionne la feuille de calcul
+            let ws = wb.Sheets[wb.SheetNames[i]]
 
-        // On converti la feuille en collection d'objets JSON
-        let datas = xlsx.utils.sheet_to_json(ws);
+
+
+            // On converti la feuille en collection d'objets JSON
+            let _datas = xlsx.utils.sheet_to_json(ws)
+
+
+            //On rajoute le nombre de ligne et le nombre de colonnes
+            _datas.forEach((elt)=>{
+                elt['PAGE_ACTUELLE'] = i+1
+                elt['PAGES_TOTALES'] = wb.SheetNames.length
+            })
+
+            _datas.forEach((elt)=>{
+                datas.push(elt)
+            })
+
+        }
 
         // On cree des variables pour y stocker le nom des colonnes
         // Pour cela on se base sur le premier objet de notre collection
@@ -86,10 +103,13 @@ export default class TransactionFile {
                 // On verifie si la propriete n'est pas nulle
                 if (elt.hasOwnProperty(prop)) {
                     // Et a ajoute la valeur de la propriété a un objet
-                    _obj[this.column_indexes[i]] = elt[prop];
-
-                    // On incrémente notre compteur
-                    i++
+                    if (prop === 'PAGE_ACTUELLE' || prop === 'PAGES_TOTALES') {
+                        _obj[prop] = elt[prop]
+                    }else{
+                        _obj[this.column_indexes[i]] = elt[prop]
+                        // On incrémente notre compteur
+                        i++
+                    }
                 }
 
 

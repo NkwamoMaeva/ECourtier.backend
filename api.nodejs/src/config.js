@@ -1,15 +1,15 @@
 module.exports = {
     db: {
-        host: 'phpmyadmin.steam-erp.app',
+        host: 'localhost',
         port: 3306,
         database: 'ecourtier',
-        user: 'ecourtier',
-        password: 'ECourtier2@19'
+        user: 'root',
+        password: 'underscore'
     },
     ldb: {
         host: 'localhost',
         user: 'root',
-        password: '',
+        password: 'underscore',
         database: 'ecourtier',
     },
 }
