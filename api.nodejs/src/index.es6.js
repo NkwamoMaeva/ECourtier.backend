@@ -136,7 +136,7 @@ server.use(function (req, res, next) {
             res.send(result);
         })
     })
-    .post('/transaction/delete', (req, res) => {
+    .delete('/transaction/delete', (req, res) => {
         let ids = JSON.parse(req.body.data);
         Delete(ids, 'id', 'transactions').then(result => {
             Delete(ids, 'idTransaction', 'files').then(result2 => {
@@ -184,23 +184,15 @@ server.use(function (req, res, next) {
     })
 
     .get('/transaction/getByInsurer/:id', (req, res) => {
-        let id = req.params["idInsurer"]
+        let id = req.params["id"]
         selectTransactionByInsurerId(id).then(result => {
             res.send(result);
         })
     })
 
     .get('/transaction/getByType/:id', (req, res) => {
-        let id = req.params["idType"]
+        let id = req.params["id"]
         selectTransactionByType(id).then(result => {
-            res.send(result);
-        })
-    })
-
-    .get('/transaction/getByDate/:startDate/:endDate', (req, res) => {
-        let startDate = req.params["startDate"];
-        let endDate = req.params["endDate"];
-        selectTransactionByDate(startDate,endDate).then(result => {
             res.send(result);
         })
     })
@@ -256,42 +248,23 @@ server.use(function (req, res, next) {
 
     })
     .get('/insurer/paid', (req, res) => {
-        return new Promise((resolve, reject) => {
-            db.connect(function (res, err) {
-                db.query(`
-                SELECT SUM(amount) FROM transactions WHERE idTransaction_type = 1 
-                `, function (err, result, fields) {
-                    if (err)
-                        return reject(err);
-                    resolve(result);
-                })
-            });
+        selectPaid().then(result => {
+            res.send(result[0])
+        })
+    })
+    .get('/insurer/unpaid', (req, res) => {
+        selectUnpaid().then(result => {
+            res.send(result[0])
         })
     })
     .get('/insurer/paid/:id', (req, res) => {
-        return new Promise((resolve, reject) => {
-            db.connect(function (res, err) {
-                db.query(`
-                SELECT SUM(amount) FROM transactions WHERE idTransaction_type = 1 
-                `, function (err, result, fields) {
-                    if (err)
-                        return reject(err);
-                    resolve(result);
-                })
-            });
+        selectPaidByInsurer(req.param("id")).then(result => {
+            res.send(result[0])
         })
     })
     .get('/insurer/unpaid/:id', (req, res) => {
-        return new Promise((resolve, reject) => {
-            db.connect(function (res, err) {
-                db.query(`
-                SELECT SUM(amount) FROM transactions WHERE idInsurer = ${req.param("id")} AND idTransaction_type = 2 
-                `, function (err, result, fields) {
-                    if (err)
-                        return reject(err);
-                    resolve(result);
-                })
-            });
+        selectUnpaidByInsurer(req.param("id")).then(result => {
+            res.send(result[0])
         })
     })
     .delete('/insurer/delete', (req, res) => {
@@ -315,6 +288,7 @@ server.use(function (req, res, next) {
         console.log('Service started at port 9001')
     });
 
+/*
 function insertTest(data) {
     return new Promise((resolve, reject) => {
         let keys = Object.keys(data);
@@ -329,6 +303,7 @@ function insertTest(data) {
         })
     })
 }
+*/
 
 function select(table) {
     return new Promise((resolve, reject) => {
@@ -483,28 +458,59 @@ function selectTransactionByType(id) {
     })
 }
 
-function selectTransactionByDate(startDate,endDate) {
+function selectPaid() {
     return new Promise((resolve, reject) => {
         db.connect(function (res, err) {
             db.query(`
-                SELECT 
-                t.id, t.reference, t.creation_date, t.amount,
-                t.last_update, t.idUser, t.idTransaction_type,
-                t.idInsurer, i.short_name,
-                f.path_file,
-                f.columns,
-                f.data_file
-                FROM transactions t
-                JOIN insurers i ON i.id = t.idInsurer
-                JOIN files f ON f.idTransaction = t.id
-                WHERE t.creation_date >= "${startDate}" AND t.creation_date <= "${endDate}"
-                `,
-                function (err, result, fields) {
-                    if (err)
-                        return reject(err)
-                    resolve(result);
-                });
-        })
+                SELECT SUM(amount) as totat FROM transactions WHERE idTransaction_type = 1 
+                `, function (err, result, fields) {
+                if (err)
+                    return reject(err);
+                resolve(result);
+            })
+        });
+    })
+}
+
+function selectPaidByInsurer(id) {
+    return new Promise((resolve, reject) => {
+        db.connect(function (res, err) {
+            db.query(`
+                SELECT SUM(amount) as totat FROM transactions WHERE idInsurer = ${id} AND idTransaction_type = 1 
+                `, function (err, result, fields) {
+                if (err)
+                    return reject(err);
+                resolve(result);
+            })
+        });
+    })
+}
+
+function selectUnpaid() {
+    return new Promise((resolve, reject) => {
+        db.connect(function (res, err) {
+            db.query(`
+                SELECT SUM(amount) as totat FROM transactions WHERE idTransaction_type = 2 
+                `, function (err, result, fields) {
+                if (err)
+                    return reject(err);
+                resolve(result);
+            })
+        });
+    })
+}
+
+function selectUnpaidByInsurer(id) {
+    return new Promise((resolve, reject) => {
+        db.connect(function (res, err) {
+            db.query(`
+                SELECT SUM(amount) as totat FROM transactions WHERE idInsurer = ${id} AND idTransaction_type = 2 
+                `, function (err, result, fields) {
+                if (err)
+                    return reject(err);
+                resolve(result);
+            })
+        });
     })
 }
 
