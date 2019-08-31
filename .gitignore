@@ -30,3 +30,4 @@ build/Release
 /.idea/
 /dev.ecourtier.api.iml
 /data.files/
+/data/

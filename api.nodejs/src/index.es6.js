@@ -204,7 +204,7 @@ server.use(function (req, res, next) {
             res.send(result);
         })
     })
-    
+
     .get('/transaction/:startDate/:endDate', (req, res) => {
         let startDate = req.param("startDate");
         let endDate = req.param("endDate");
