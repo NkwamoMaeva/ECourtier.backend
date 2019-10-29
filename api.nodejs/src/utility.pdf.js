@@ -1,10 +1,10 @@
-let request = require('request');
-let fs = require('fs');
+const request = require('request');
+const fs = require('fs');
 const path = require('path');
 
 const API_URL = 'https://pdftables.com/api?key=1nda6sg80tjv&format=xlsx-multiple';
 
-export default class PDF {
+class PDF {
 
     static toXLSX(srcFilePath, encoding) {
         return new Promise((resolve, reject) => {
@@ -37,3 +37,5 @@ export default class PDF {
 
 
 }
+
+module.exports = PDF;

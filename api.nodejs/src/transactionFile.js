@@ -1,7 +1,7 @@
-import xlsx from 'xlsx';
+const xlsx = require('xlsx');
 
 
-export default class TransactionFile {
+class TransactionFile {
 
 
     constructor(filePath) {
@@ -297,3 +297,5 @@ export default class TransactionFile {
         return Math.round(_commission * 100) / 100
     }
 }
+
+module.exports = TransactionFile;

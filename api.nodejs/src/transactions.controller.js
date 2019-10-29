@@ -1,7 +1,7 @@
-import mv from 'mv';
-import TransactionFile from './transactionFile';
-import PDF from "./utility.pdf";
-export default class TransactionsController {
+const mv =  require('mv');
+const TransactionFile =  require('./transactionFile');
+const PDF = require("./utility.pdf");
+class TransactionsController {
 
     constructor() {}
 
@@ -39,7 +39,7 @@ export default class TransactionsController {
                         type: this.type,
                         reference: ''.concat(this.type, timeNumber.substring(pos))
                     });
-                }
+                };
 
                 if (extension.toLowerCase() === 'pdf') {
                     PDF.toXLSX(newFilePath, null)

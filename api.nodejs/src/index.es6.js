@@ -1,681 +1,1014 @@
-import express from 'express';
-import UtilityDto from './utility.dto';
-import TransactionsController from './transactions.controller';
-import InsurersController from './insurances.controller';
-// import restifyCors from 'restify-cors-middleware';
-import path from 'path';
-import TransactionsRoutes from './transactions.routes';
-// import UsersRoutes from './user.routes';
-import mysql from 'mysql';
-import config from './config'
-import fileUpload from 'express-fileupload';
-import querystring from 'querystring'
-import bodyparser from 'body-parser'
-// import corsMiddleware from 'restify-cors-middleware';
+const express = require('express');
+const Sequelize = require('sequelize');
+const bodyparser = require('body-parser');
+const mv = require('mv');
+const Model = Sequelize.Model;
+const Op = Sequelize.Op;
+const PDF = require("./utility.pdf");
+const md5 = require("md5");
+const multer = require('multer');
+const TransactionFile = require('./TransactionFile');
+const upload = multer({
+    dest: '/data/'
+});
+//const TransactionsController = require('./transactions.controller');
+const server = express();
+const fileUpload = require('express-fileupload');
+let port = 9001;
 
-// const cors = corsMiddleware({
-//     preflightMaxAge: 5, //Optional
-//     origins: ['http://api.myapp.com', 'http://web.myapp.com'],
-//     allowHeaders: ['API-Token'],
-//     exposeHeaders: ['API-Token-Expiry']
-// })
+const sequelize = new Sequelize({
+    dialect: 'sqlite',
+    storage: '/database.sqlite'
+});
 
-/**
- * Creating server
- *
- * @type {Server}
- */
-// const server = restify.createServer({
-//     name: 'eCourtierApiCore'
-// });
+const intervals = [
+    [1, 3],
+    [4, 6],
+    [7, 9],
+    [10, 12]
+];
 
-// //CORS
-// const cors = restifyCors({
-//     origins: ['*'],
-//     preflightMaxAge: 86400,
-//     allowHeaders: [
-//         'Content-Type',
-//         'Authorization',
-//         'Content-Length',
-//         'X-Request-Width',
-//         'Accept',
-//         'x-parse-application-id',
-//         'x-parse-rest-api-key',
-//         'x-parse-session-token'
-//     ],
-//     exposeHeaders: [],
-//     credentials: false
-// });
-const server = express()
-// server.pre(cors.preflight);
-// server.use(cors.actual);
+server
+    .use(bodyparser.urlencoded({limit: '64mb', extended: true}))
 
-//This plugin deduplicates extra slashes found in the URL.
-// server.pre(restify.plugins.pre.dedupeSlashes());
+    .use(bodyparser.json())
 
-//This plugin parses the Accept header, and ensures that the server can respond to what the client asked for.
-// server.use(restify.plugins.acceptParser(server.acceptable));
+    .use(bodyparser())
 
-// server.use(restify.plugins.queryParser());
-// server.use(restify.plugins.bodyParser());
+    .use((req, res, next) => {
+        res.header('Access-Control-Allow-Origin', "*");
+        res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+        next();
+    })
 
-const routes = {
-    transactions: new TransactionsRoutes(server),
-    // user: new UsersRoutes(server)
-};
+    .get('/', (req, res) => {
 
-let db = mysql.createConnection(config.ldb)
+        User.findAll().then(users => {
+            res.send(JSON.stringify(users, null, 4));
+        });
+    })
 
-server.use(bodyparser.urlencoded({limit: '50mb', extended: true}));
-server.use(bodyparser.json());
-server.use(bodyparser());
-server.use(fileUpload({
-    limits: {fileSize: 50 * 1024 * 1024},
-    useTempFiles: true,
-}));
-server.use(function (req, res, next) {
-    res.header('Access-Control-Allow-Origin', "*");
-    res.header('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE'); // If needed
-    res.header('Access-Control-Allow-Headers', 'Content-Type'); // If needed
-    next();
-})
     .post('/login', (req, res) => {
-        let username = req.body.username;
-        let password = req.body.password;
-        login(username, password).then(result => {
 
-            if(result.length === 0){
-                let msg = '{"message":"Paramètres de connexion incorrects !","data":null}';
-                res.send(JSON.parse(msg));
-            }else{
-                let user = `{
-                    "id": ${result[0].id},
-                    "password": "${result[0].password}",
-                    "username": "${result[0].username}",
-                    "displayed_name": "${result[0].displayed_name}",
-                    "registration_date": "${result[0].registration_date}",
-                    "image_path": "${result[0].image_path}",
-                    "idCompany": ${result[0].idCompany}
-                }`;
-                let msg = `{"message":"Connexion réussie !","data": ${user}}`;
-                res.send(JSON.parse(msg));
+        const request = req.body;
+
+
+        let answer;
+        if (request !== undefined && request.username !== undefined && request.password !== undefined) {
+            const username = request.username;
+            const password = md5(request.password);
+
+
+            login(username, password).then(result => {
+
+                if (result.toString() !== '') {
+
+                    res.send(JSON.stringify(result, null, 4));
+                }
+            }).catch(_ => {
+                let msg = null;
+                res.send(JSON.stringify(msg, null, 4));
+            });
+
+        } else {
+
+            answer = null;
+            res.send(JSON.stringify(answer, null, 4));
+        }
+
+    })
+
+    .post('/register', (req, res) => {
+
+        const request = req.body;
+        let answer;
+
+        if (request !== undefined && request.username !== undefined && request.password !== undefined && request.name !== undefined && request.company !== undefined) {
+
+            const username = request.username;
+            const password = request.password;
+            const name = request.name;
+            const company = request.company;
+
+            if (username.length !== 0 && password.length !== 0 && name.length !== 0 && !isNaN(company)) {
+
+                Company.findAll({
+                    where: {
+                        id: company
+                    }
+                }).then(companies => {
+
+                    if (companies.length !== 0) {
+
+                        register(username, md5(password), name, company).then(result => {
+
+                            if (result.toString() !== '') {
+
+                                res.send(JSON.stringify(result, null, 4));
+                            }
+
+                        }).catch(_ => {
+                            let msg = null;
+                            res.send(JSON.stringify(msg, null, 4));
+                        })
+
+                    } else {
+                        answer = null;
+                        res.send(JSON.stringify(answer, null, 4));
+                    }
+
+                });
+
+            } else {
+                answer = null;
+                res.send(JSON.stringify(answer, null, 4));
             }
-        })
-    })
 
-    .post('/upload', (req, res) => {
-        let file = req.files.transactionFile;
-        let insurer = req.body.insurer;
-        let idInsurer = req.body.idInsurer;
-        let type = req.body.transactionType;
-        // try {
-        const transaction = new TransactionsController();
-        transaction.uploadFile(file, type, insurer, idInsurer).then(data => {
-            res.send(data);
-        });
-    })
-    .post('/transaction/add', (req, res) => {
-        console.log(req.body);
-        let data = req.body;
-        let date = new Date();
-
-
-        //let lastUpdate = data.last_update.replace('T', ' ').split('.')[0]
-        //let creatonDate = data.creation_date.replace('T', ' ').split('.')[0]
-        let transaction = {
-            'idInsurer': data.idInsurer,
-            'idTransaction_type': data.idTransaction_type,
-            'reference': data.reference,
-            'amount': data.amount,
-            'last_update': data.last_update,
-            'creation_date': data.creation_date,
-            'idUser': data.idUser,
+        } else {
+            answer = null;
+            res.send(JSON.stringify(answer, null, 4));
         }
-        // let newDataFile = data.data_file.replace(/"/g, '|')
-        // let newColumns = data.columns.replace(/"/g, '|')
-        let file = {
-            'columns': data.columns,
-            'path_file': data.path_file,
-            'data_file': data.data_file,
-            'idTransaction': null
+
+    })
+
+    .post('/transaction', (req, res) => {
+        const request = req.body;
+
+        if (request !== undefined && request.idInsurer !== undefined && request.reference !== undefined &&
+            request.idTransaction_type !== undefined && request.amount !== undefined &&
+            request.idUser !== undefined && request.path_file !== undefined && request.columns !== undefined &&
+            request.data_file !== undefined && request.creation_date !== undefined && request.last_update !== undefined
+        ) {
+
+            const insurer = request.idInsurer;
+            const reference = request.reference;
+            const type = request.idTransaction_type;
+            const amount = request.amount;
+            const user = request.idUser;
+
+            const columns = request.columns;
+            const path = request.path_file;
+            const data = request.data_file;
+
+            addTransaction(insurer, user, type, amount, reference, [columns, path, data]).then(result => {
+                if (result.toString() !== '') {
+
+                    console.log("Save done !");
+                    res.send(JSON.stringify(result, null, 4));
+
+                }
+            }).catch(err => {
+
+                console.log(err);
+                res.send(JSON.stringify(err, null, 4));
+
+            });
+
+        } else {
+
+            console.log("Params error !");
+            res.send(JSON.stringify(null, null, 4));
+
         }
-        insert('transactions', transaction).then(result => {
-            file.idTransaction = result.insertId;
-            insert('files', file).then(res2 => {
-                alterAssureur(data['eltToUpdate'], data['valueToUpdate'], transaction.idInsurer).then(result2 => {
-                    res.send(result);
-                })
-            })
-        })
+
     })
-    .get('/transaction/get', (req, res) => {
-        selectAllTransaction().then(result => {
-            res.send(result);
-        })
-    })
-    .delete('/transaction/delete', (req, res) => {
-        let ids = req.body.id;
-        Delete(ids, 'id', 'transactions').then(result => {
-            Delete(ids, 'idTransaction', 'files').then(result2 => {
-                res.send(result);
-            })
-        })
-    })
+
     .put('/transaction/update/:id', (req, res) => {
-        let id = req.params['id']
-        let data = req.body.data;
+        const request = req.body;
+        const id = req.params.id;
 
-        let lastUpdate = data.last_update.replace('T', ' ').split('.')[0]
-        let creationDate = data.creation_date.replace('T', ' ').split('.')[0]
-        let transaction = {
-            'idInsurer': data.idInsurer,
-            'idTransaction_type': data.idTransaction_type,
-            'reference': data.reference,
-            'amount': data.amount,
-            'last_update': lastUpdate,
-            'creation_date': creationDate,
-            'idUser': data.idUser,
+        if (request !== undefined && request.idInsurer !== undefined && request.reference !== undefined &&
+            request.idTransaction_type !== undefined && request.amount !== undefined && req.params.id !== undefined &&
+            request.idUser !== undefined && request.path_file !== undefined && request.columns !== undefined &&
+            request.data_file !== undefined && request.creation_date !== undefined && request.last_update !== undefined
+        ) {
+
+            const id = req.params.id;
+            const reference = request.reference;
+            const amount = request.amount;
+
+            const columns = request.columns;
+            const path = request.path_file;
+            const data = request.data_file;
+
+            updateTransaction(id, reference, amount, [columns, path, data]).then(result => {
+                if (result.toString() !== '') {
+
+                    console.log("Saving error !");
+                    res.send(JSON.stringify(result, null, 4));
+
+                }
+            }).catch(err => {
+
+                console.log(err);
+                res.send(JSON.stringify(err, null, 4));
+
+            });
+
+        } else {
+
+            console.log("Params error !");
+            res.send(JSON.stringify(null, null, 4));
+
         }
-        let newDataFile = data.data_file.replace(/"/g, '|')
-        let newColumns = data.columns.replace(/"/g, '|')
-        let file = {
-            'columns': newColumns,
-            'path_file': data.path_file,
-            'data_file': newDataFile,
-            'idTransaction': null
-        }
-        updateAll('transactions', transaction, 'id', id).then(result => {
-            file.idTransaction = id;
-            updateAll('files', file, 'path_file', data.path_file).then(result2 => {
-                alterAssureur(data['eltToUpdate'], data['valueToUpdate'], transaction.idInsurer).then(result3 => {
-                    res.send(result);
-                })
-            })
-        })
-    })
-    .get('/transaction/get/:id', (req, res) => {
-        let id = req.params["id"]
-        selectTransactionById(id).then(result => {
-            res.send(result[0]);
-        })
     })
 
-    .get('/transaction/getByInsurer/:id', (req, res) => {
-        let id = req.params["id"]
-        selectTransactionByInsurerId(id).then(result => {
-            res.send(result);
-        })
-    })
+    .post('/insurer/add', upload.single('image'), (req, res) => {
 
-    .get('/transaction/getByType/:id', (req, res) => {
-        let id = req.params["id"]
-        selectTransactionByType(id).then(result => {
-            res.send(result);
-        })
-    })
-
-    .get('/transaction/:startDate/:endDate', (req, res) => {
-        let startDate = req.param("startDate");
-        let endDate = req.param("endDate");
-        selectByPeriod(startDate, endDate).then(result => {
-            res.send(result);
-        })
-    })
-    .post('/insurer', (req, res) => {
-
-        let file = req.files.image;
-        let dues = req.body.dues;
-        let regles = req.body.regles;
-        let description = req.body.description;
-        let short_name = req.body.short_name;
-
-        // console.log(file);
-        const insurer = new InsurersController();
-        insurer.uploadFile(file, regles, dues, short_name, description).then(data => {
-            // console.log(data)
-            // res.send(data);
-            insert('insurers', data).then(result => {
-                res.send(result);
-            })
+        addInsurer(req).then(result => {
+            res.send(JSON.stringify(result, null, 4));
         });
-        // let data = req.body.insurer;
-        // insert('insurers', data).then(result => {
-        //     res.send(result);
-        // })
-    })
-    .put('/insurer/update/:id', (req, res) => {
-        let id = req.param("id");
-        let short_name = req.param("short_name");
-        let description = req.param("description");
-        let image_path = req.param("image_path");
-        let dues = req.param("dues");
-        let regles = req.param("regles");
-
-        return new Promise((resolve, reject) => {
-            db.connect(function (res, err) {
-                db.query(`
-                UPDATE insurers SET short_name = ${short_name},
-                                    description = ${description},
-                                    image_path = ${image_path},
-                                    dues = ${dues},
-                                    regles = ${regles}
-                                WHERE id = ${id}
-                `);
-            })
-        })
 
     })
-    .get('/insurer/paid', (req, res) => {
-        selectPaid().then(result => {
-            res.send(result[0])
+
+    .post('/upload', upload.single('transactionFile'), (req, res) => {
+
+
+        uploadTransaction(req).then(result => {
+            res.send(JSON.stringify(result, null, 4));
+        });
+
+    })
+
+    .get('/transaction', (req, res) => {
+
+        let start_date = checkDateTrimester(new Date())[0];
+        let end_date = checkDateTrimester(new Date())[1];
+
+        if (req.body.start_date !== undefined) {
+            start_date = toDate(req.body.start_date);
+        }
+
+        if (req.body.end_date !== undefined) {
+            end_date = toDate(req.body.end_date);
+        }
+
+
+        Transaction.findAll({
+            where: {
+                creation_date: {
+                    [Op.between]: [start_date, end_date]
+                }
+            },
+            include: [
+                {model: TransactionType},
+                {model: Insurer},
+                {model: File}
+            ]
+        }).then(transactions => {
+            res.send(JSON.stringify(transactions, null, 4));
+        }).catch(err => {
+
         })
     })
-    .get('/insurer/listed', (req, res) => {
-        selectPaidListed().then(result => {
-            res.send(result[0])
+
+    .get('/transaction/:id', (req, res) => {
+        const id = req.params.id;
+        Transaction.findOne({
+            where: {
+                id: {
+                    [Op.eq]: id
+                }
+            },
+            include: [
+                {model: TransactionType},
+                {model: File},
+                {model: Insurer}
+            ]
+        }).then(transaction => {
+            res.send(JSON.stringify(transaction.TransactionType, null, 4));
+        }).catch(err => {
+
         })
     })
-    .get('/insurer/unlisted', (req, res) => {
-        selectPaidUnListed().then(result => {
-            res.send(result[0])
-        })
+
+    .delete('/transaction/delete', (req, res) => {
+        const ids = req.body.id;
+
+        Transaction.destroy({
+            where: {
+                id: {
+                    [Op.in]: ids
+                }
+            }
+        }).then(_ => {
+            res.send(JSON.parse('{"message":"Transactions deleted !"}'));
+        });
     })
-    .get('/insurer/unpaid', (req, res) => {
-        selectUnpaid().then(result => {
-            res.send(result[0])
-        })
-    })
-    .get('/insurer/paid/:id', (req, res) => {
-        selectPaidByInsurer(req.param("id")).then(result => {
-            res.send(result[0])
-        })
-    })
-    .get('/insurer/unpaid/:id', (req, res) => {
-        selectUnpaidByInsurer(req.param("id")).then(result => {
-            res.send(result[0])
-        })
-    })
-    .delete('/insurer/delete', (req, res) => {
-        let ids = req.body.id;
-        Delete(ids, 'id', 'insurers').then(result => {
-            res.send(result);
-        })
-    })
-    .post('/insurer/:id', (req, res) => {
-        let id = req.param("id")
-    })
+
     .get('/insurer', (req, res) => {
-        select('insurers').then(result => {
-            res.send(result);
-        })
+        Insurer.findAll().then(insurers => {
+            res.send(JSON.stringify(insurers, null, 4));
+        });
     })
+
+    .get('/insurer/paid', (req, res) => {
+
+        let start_date = checkDateTrimester(new Date())[0];
+        let end_date = checkDateTrimester(new Date())[1];
+
+        if (req.body.start_date !== undefined) {
+            start_date = toDate(req.body.start_date);
+        }
+
+        if (req.body.end_date !== undefined) {
+            end_date = toDate(req.body.end_date);
+        }
+
+        Insurer.findOne({
+            where: {
+                id: {
+                    [Op.eq]: parseInt(req.body.insurer)
+                }
+            }
+        }).then(insurer => {
+            if (insurer != null) {
+                Transaction.findAll({
+                    where: {
+                        insurer_id: {
+                            [Op.eq]: insurer.id
+                        },
+                        creation_date: {
+                            [Op.between]: [start_date, end_date]
+                        }, transaction_type_id: {
+                            [Op.eq]: 2
+                        }
+                    },
+                    include: [
+                        {model: TransactionType},
+                        {model: Insurer},
+                        {model: File}
+                    ]
+                }).then(transactions => {
+                    res.send(JSON.stringify(transactions, null, 4));
+                }).catch(err => {
+                    console.log(err);
+                })
+            }
+        }).catch(err => {
+            console.log(err);
+        });
+
+    })
+
+    .get('/insurer/unpaid', (req, res) => {
+
+        let start_date = checkDateTrimester(new Date())[0];
+        let end_date = checkDateTrimester(new Date())[1];
+
+        if (req.body.start_date !== undefined) {
+            start_date = toDate(req.body.start_date);
+        }
+
+        if (req.body.end_date !== undefined) {
+            end_date = toDate(req.body.end_date);
+        }
+
+        Insurer.findOne({
+            where: {
+                id: {
+                    [Op.eq]: parseInt(req.body.insurer)
+                }
+            }
+        }).then(insurer => {
+            if (insurer != null) {
+                Transaction.findAll({
+                    where: {
+                        insurer_id: {
+                            [Op.eq]: insurer.id
+                        },
+                        creation_date: {
+                            [Op.between]: [start_date, end_date]
+                        }, transaction_type_id: {
+                            [Op.eq]: 1
+                        }
+                    },
+                    include: [
+                        {model: TransactionType},
+                        {model: Insurer},
+                        {model: File}
+                    ]
+                }).then(transactions => {
+                    res.send(JSON.stringify(transactions, null, 4));
+                }).catch(err => {
+                    console.log(err);
+                })
+            }
+        }).catch(err => {
+            console.log(err);
+        });
+
+    })
+
     .get('/insurer/:id', (req, res) => {
-        selectById('insurers', req.param("id")).then(result => {
-            res.send(result[0]);
+        const id = req.params.id;
+        Insurer.findOne({
+            where: {
+                id: {
+                    [Op.eq]: id
+                }
+            }
+        }).then(insurer => {
+            res.send(JSON.stringify(insurer, null, 4));
+        });
+    })
+
+    .delete('/insurer/delete', (req, res) => {
+        const ids = req.body.id;
+
+        Insurer.destroy({
+            where: {
+                id: {
+                    [Op.in]: ids
+                }
+            }
+        }).then(_ => {
+            res.send(JSON.parse('{"message":"Insurers deleted !"}'));
+        });
+    })
+
+    .get('/transaction_paid', (req, res) => {
+        let start_date = checkDateTrimester(new Date())[0];
+        let end_date = checkDateTrimester(new Date())[1];
+
+        if (req.body.start_date !== undefined) {
+            start_date = toDate(req.body.start_date);
+        }
+
+        if (req.body.end_date !== undefined) {
+            end_date = toDate(req.body.end_date);
+        }
+
+        Transaction.findAll({
+            where: {
+                transaction_type_id: {
+                    [Op.eq]: 2
+                },
+                creation_date: {
+                    [Op.between]: [start_date, end_date]
+                }
+            }
+        }).then(transactions => {
+            let amount = 0.0;
+            transactions.forEach(transaction => {
+                amount += parseFloat(transaction.amount);
+            });
+            res.send(JSON.stringify(amount, null, 4));
+        }).catch(err => {
+
         })
     })
-    .post('/transactionTypes', (req, res) => {
-        select('transaction_types')
+
+
+    .get('/transaction_unpaid', (req, res) => {
+        let start_date = checkDateTrimester(new Date())[0];
+        let end_date = checkDateTrimester(new Date())[1];
+
+        if (req.body.start_date !== undefined) {
+            start_date = toDate(req.body.start_date);
+        }
+
+        if (req.body.end_date !== undefined) {
+            end_date = toDate(req.body.end_date);
+        }
+
+        Transaction.findAll({
+            where: {
+                transaction_type_id: {
+                    [Op.eq]: 1
+                },
+                creation_date: {
+                    [Op.between]: [start_date, end_date]
+                }
+            }
+        }).then(transactions => {
+            let amount = 0.0;
+            transactions.forEach(transaction => {
+                amount += parseFloat(transaction.amount);
+            });
+            res.send(JSON.stringify(amount, null, 4));
+        }).catch(err => {
+
+        })
     })
-    .listen(9001, function () {
-        console.log('Service started at port 9001')
+
+
+    .get('/transaction_paid/listed', (req, res) => {
+
+        let start_date = checkDateTrimester(new Date())[0];
+        let end_date = checkDateTrimester(new Date())[1];
+
+        if (req.body.start_date !== undefined) {
+            start_date = toDate(req.body.start_date);
+        }
+
+        if (req.body.end_date !== undefined) {
+            end_date = toDate(req.body.end_date);
+        }
+
+        const id = req.params.id;
+        Transaction.findAll({
+            where: {
+                transaction_type_id: {
+                    [Op.eq]: 1
+                }, creation_date: {
+                    [Op.between]: [start_date, end_date]
+                }
+            }, include: [
+                {model: File}
+            ]
+        }).then(transactions => {
+            let amount = 0.0;
+            transactions.forEach(transaction => {
+                if (transaction.file != null) {
+                    amount += parseFloat(transaction.amount);
+                }
+            });
+            res.send(JSON.stringify(amount, null, 4));
+        }).catch(err => {
+
+        })
+    })
+
+    .get('/transaction_paid/unlisted', (req, res) => {
+        const id = req.params.id;
+        let start_date = checkDateTrimester(new Date())[0];
+        let end_date = checkDateTrimester(new Date())[1];
+
+        if (req.body.start_date !== undefined) {
+            start_date = toDate(req.body.start_date);
+        }
+
+        if (req.body.end_date !== undefined) {
+            end_date = toDate(req.body.end_date);
+        }
+        Transaction.findAll({
+            where: {
+                transaction_type_id: {
+                    [Op.eq]: 1
+                }, creation_date: {
+                    [Op.between]: [start_date, end_date]
+                }
+            }, include: [
+                {model: File}
+            ]
+        }).then(transactions => {
+            let amount = 0.0;
+            transactions.forEach(transaction => {
+                if (transaction.file == null) {
+                    amount += parseFloat(transaction.amount);
+                }
+            });
+            res.send(JSON.stringify(amount, null, 4));
+        }).catch(err => {
+
+        })
+    })
+
+    .get('/transaction_type', (req, res) => {
+        TransactionType.findAll().then(types => {
+            res.send(JSON.stringify(types, null, 4));
+        })
+    })
+    .listen(port, _ => {
+        console.log("Server started at port " + port);
+        sequelize.authenticate().then(_ => {
+            const tables = [];
+            sequelize.modelManager.forEachModel(m => {
+                if (m.options.doNotSync !== true) {
+                    tables.push(m);
+                }
+            });
+
+            Sequelize.Promise.each(tables, t => {
+                return t.sync({force: false});
+            }).then(_ => {
+                Company.create({
+                    short_name: 'E-CONSEIL',
+                    head_office: 'DOUALA'
+                }).then(_ => {
+                    TransactionType.create({
+                        intitule: 'Bordereau'
+                    }).then(_ => {
+                        TransactionType.create({
+                            intitule: 'Commission'
+                        }).then(_ => {
+                            console.log("Data created");
+                        })
+                    })
+                }).catch(err => {
+
+
+                });
+            });
+
+        }).catch(err => {
+            console.log("Error while connecting to the database! " + err);
+        });
+
+
     });
 
-/*
-function insertTest(data) {
-    return new Promise((resolve, reject) => {
-        let keys = Object.keys(data);
 
-        db.connect(function (res, err) {
-            let query = `INSERT INTO test (data) VALUE("${data}")`
-            db.query(query, function (err, result, fields) {
-                if (err)
-                    return reject(err)
-                resolve(result)
-            });
-        })
-    })
-}
-*/
+function checkDateTrimester(date) {
+    let month = date.getMonth() + 1;
+    let answer = [];
 
-function selectById(table, id) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`SELECT * FROM ${table} WHERE id = ${id}`, function (err, result, fields) {
-                if (err)
-                    return reject(err)
-                resolve(result);
-            });
-        })
-    })
+    if (month >= 1 && month <= 3)
+        answer = [date.getFullYear() + '-01-01', date.getFullYear() + '-03-31'];
+    else if (month >= 4 && month <= 6)
+        answer = [date.getFullYear() + '-04-01', date.getFullYear() + '-06-30'];
+    else if (month >= 7 && month <= 9)
+        answer = [date.getFullYear() + '-07-01', date.getFullYear() + '-09-30'];
+    else if (month >= 10 && month <= 12)
+        answer = [date.getFullYear() + '-10-01', date.getFullYear() + '-12-31'];
+
+    return answer;
 }
 
-function select(table) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`SELECT * FROM ${table}`, function (err, result, fields) {
-                if (err)
-                    return reject(err)
-                resolve(result);
-            });
-        })
-    })
-}
-
-function alterAssureur(fieldToUpdate, newValue, id) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(
-                `
-              UPDATE insurers
-              SET ${fieldToUpdate} = ${newValue}
-              WHERE id = ${id}
-            `,
-                function (err, result, fields) {
-                    if (err)
-                        return reject(err)
-                    resolve(result);
-                });
-        })
-    })
-}
-
-
-function updateAll(table, elt, referenceField, referenceValue) {
-    let keys = Object.keys(elt);
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            let query = `UPDATE ${table} SET `
-            keys.forEach(element => {
-                query += `${element} = "${elt[element]}", `
-            });
-            query = query.slice(0, query.length - 2)
-            query += ` WHERE ${referenceField} = "${referenceValue}"`
-            console.log(query)
-            db.query(query, function (err, result, fields) {
-                if (err)
-                    return reject(err)
-                resolve(result)
-            });
-        })
-    })
-}
-
-function selectAllTransaction() {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                        SELECT t.id,
-                               t.reference,
-                               t.creation_date,
-                               t.amount,
-                               t.last_update,
-                               t.idUser,
-                               t.idTransaction_type,
-                               t.idInsurer,
-                               i.short_name,
-                               f.path_file
-                        FROM transactions t
-                                 JOIN insurers i ON i.id = t.idInsurer
-                                 JOIN files f ON f.idTransaction = t.id
-                `,
-                function (err, result, fields) {
-                    if (err)
-                        return reject(err)
-                    resolve(result);
-                });
-        })
-    })
-}
-
-function selectTransactionById(id) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                SELECT 
-                t.id, t.reference, t.creation_date, t.amount,
-                t.last_update, t.idUser, t.idTransaction_type,
-                t.idInsurer, i.short_name,
-                f.path_file,
-                f.columns,
-                f.data_file
-                FROM transactions t
-                JOIN insurers i ON i.id = t.idInsurer
-                JOIN files f ON f.idTransaction = t.id
-                WHERE t.id = "${id}"
-                `,
-                function (err, result, fields) {
-                    if (err)
-                        return reject(err)
-                    resolve(result);
-                });
-        })
-    })
-}
-
-function selectTransactionByInsurerId(id) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                SELECT 
-                t.id, t.reference, t.creation_date, t.amount,
-                t.last_update, t.idUser, t.idTransaction_type,
-                t.idInsurer, i.short_name,
-                f.path_file,
-                f.columns,
-                f.data_file
-                FROM transactions t
-                JOIN insurers i ON i.id = t.idInsurer
-                JOIN files f ON f.idTransaction = t.id
-                WHERE t.idInsurer = "${id}"
-                `,
-                function (err, result, fields) {
-                    if (err)
-                        return reject(err)
-                    resolve(result);
-                });
-        })
-    })
-}
-
-function selectTransactionByType(id) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                SELECT 
-                t.id, t.reference, t.creation_date, t.amount,
-                t.last_update, t.idUser, t.idTransaction_type,
-                t.idInsurer, i.short_name,
-                f.path_file,
-                f.columns,
-                f.data_file
-                FROM transactions t
-                JOIN insurers i ON i.id = t.idInsurer
-                JOIN files f ON f.idTransaction = t.id
-                WHERE t.idTransaction_type = "${id}"
-                `,
-                function (err, result, fields) {
-                    if (err)
-                        return reject(err)
-                    resolve(result);
-                });
-        })
-    })
-}
-
-function selectPaid() {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                SELECT SUM(amount) as totat
-                FROM transactions
-                WHERE idTransaction_type = 1
-            `, function (err, result, fields) {
-                if (err)
-                    return reject(err);
-                resolve(result);
-            })
-        });
-    })
-}
-
-function selectPaidListed() {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                SELECT SUM(t.amount) as totat
-                FROM transactions as t
-                WHERE t.idTransaction_type = 1
-                  AND (
-                          SELECT COUNT(f.id)
-                          FROM files AS f
-                          WHERE f.idTransaction = t.id
-                      ) <> 0
-            `, function (err, result, fields) {
-                if (err)
-                    return reject(err);
-                resolve(result);
-            })
-        });
-    })
-}
-
-function selectPaidUnListed() {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                SELECT SUM(t.amount) as totat
-                FROM transactions as t
-                WHERE t.idTransaction_type = 1
-                  AND (
-                          SELECT COUNT(f.id)
-                          FROM files AS f
-                          WHERE f.idTransaction = t.id
-                      ) = 0
-            `, function (err, result, fields) {
-                if (err)
-                    return reject(err);
-                resolve(result);
-            })
-        });
-    })
-}
-
-function selectPaidByInsurer(id) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                SELECT SUM(amount) as totat FROM transactions WHERE idInsurer = ${id} AND idTransaction_type = 1 
-                `, function (err, result, fields) {
-                if (err)
-                    return reject(err);
-                resolve(result);
-            })
-        });
-    })
-}
-
-function selectUnpaid() {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                SELECT SUM(amount) as totat
-                FROM transactions
-                WHERE idTransaction_type = 2
-            `, function (err, result, fields) {
-                if (err)
-                    return reject(err);
-                resolve(result);
-            })
-        });
-    })
-}
-
-function selectUnpaidByInsurer(id) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                SELECT SUM(amount) as totat FROM transactions WHERE idInsurer = ${id} AND idTransaction_type = 2 
-                `, function (err, result, fields) {
-                if (err)
-                    return reject(err);
-                resolve(result);
-            })
-        });
-    })
-}
-
-function Delete(ids, reference, table) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-                DELETE FROM ${table} 
-                WHERE ${reference} IN (${ids})
-                `,
-                function (err, result, fields) {
-                    if (err)
-                        return reject(err)
-                    resolve(result);
-                });
-        })
-    })
-}
-
-function insert(table, data) {
-    return new Promise((resolve, reject) => {
-        let keys = Object.keys(data);
-
-        db.connect(function (res, err) {
-            let query = `INSERT INTO ${table} (id`
-            keys.forEach(element => {
-                query += `, ${element}`
-            });
-            query += `) VALUES(${null}`
-
-            keys.forEach(element => {
-                query += `, "${data[element]}"`
-            });
-            query += `)`
-            db.query(query, function (err, result, fields) {
-                if (err)
-                    return reject(err)
-                resolve(result)
-            });
-        })
-    })
-}
-
-function selectByPeriod(startDate, endDate) {
-    return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`
-            SELECT 
-            t.id, t.reference, t.creation_date, t.amount,
-            t.last_update, t.idUser, t.idTransaction_type,
-            t.idInsurer, i.short_name
-            FROM transactions t
-            JOIN insurers i ON i.id = t.idInsurer
-            WHERE creation_date BETWEEN "${startDate}" AND "${endDate}"
-            `,
-                function (err, result, fields) {
-                    if (err)
-                        return reject(err)
-                    resolve(result)
-                });
-        })
-    })
+function toDate(dateStr) {
+    let parts = dateStr.split("-");
+    return new Date(parts[0], parts[1] - 1, parts[2]);
 }
 
 function login(username, password) {
     return new Promise((resolve, reject) => {
-        db.connect(function (res, err) {
-            db.query(`SELECT * FROM users WHERE username = "${username}" AND password = "${password}"`,
-                function (err, result, fields) {
-                    if (err) {
-                        return reject(err)
-                    }
-                    resolve(result)
-                });
-        })
+        User.findOne({
+            where: {
+                username: username,
+                password: password
+            },
+            include: [
+                {
+                    model: Company
+                }
+            ]
+        }).then(user => {
+            resolve(user);
+        }).catch(err => {
+            return reject(err);
+        });
     })
 }
+
+
+function register(username, password, name, company) {
+    return new Promise(((resolve, reject) => {
+        User.create({
+            password: password,
+            username: username,
+            displayed_name: name,
+            company_id: company
+        }).then(user => {
+
+            User.findOne({
+                where: {
+                    id: user.id
+                },
+                include: [
+                    {
+                        model: Company
+                    }
+                ]
+            }).then(user => {
+                resolve(user);
+            }).catch(err => {
+                return reject(err);
+            });
+
+        }).catch(err => {
+            return reject(err);
+        })
+    }))
+}
+
+
+function addTransaction(idInsurer, user, idTransaction_type, amount, reference, arr) {
+    return new Promise((resolve, reject) => {
+        Transaction.create({
+            reference: reference,
+            amount: amount,
+            insurer_id: idInsurer,
+            transaction_type_id: idTransaction_type,
+            user_id: user,
+        }).then(transaction => {
+            if (arr.length >= 3) {
+                const columns = arr[0];
+                const path = arr[1];
+                const data = arr[2];
+
+                File.create({
+                    path_file: path,
+                    data_file: data,
+                    columns: columns,
+                    id_transaction: transaction.id
+                }).then(transaction_ => {
+                    return resolve(transaction_);
+                })
+
+            }
+            return resolve(transaction);
+        }).catch(err => {
+            return reject(err);
+        });
+    });
+}
+
+function updateTransaction(id, reference, amount, arr) {
+    return new Promise((resolve, reject) => {
+        Transaction.update({
+            reference: reference,
+            amount: amount,
+        }, {
+            where: {
+                id: id
+            }
+        }).then(_ => {
+            Transaction.findOne(
+                {
+                    include: [
+                        {model: File}
+                    ],
+                    where: {id: id}
+                }
+            ).then(transaction => {
+                console.log(transaction);
+                if (arr.length >= 3) {
+                    const columns = arr[0];
+                    const path = arr[1];
+                    const data = arr[2];
+
+                    File.update({
+                        path_file: path,
+                        data_file: data,
+                        columns: columns
+                    }, {
+
+                        where: {
+                            id_transaction: transaction.id
+                        }
+                    }).then(_ => {
+                        return resolve(transaction);
+                    })
+
+                }
+                return resolve(transaction);
+            });
+        }).catch(err => {
+            return reject(err);
+        });
+    });
+}
+
+function uploadTransaction(param) {
+    const insurer = param.body.insurer;
+    const insurer_id = parseInt(param.body.idInsurer);
+    const type_id = parseInt(param.body.transactionType);
+    const file_ = param.file;
+
+    const names = file_.originalname.split('.');
+    const extension = names[names.length - 1];
+    const tmp_path = file_.path;
+    let newFilePath = `data/files/${insurer}/${type_id}_${new Date().getTime()}.${extension}`;
+
+    return new Promise((resolve, reject) => {
+
+        mv(tmp_path, newFilePath, {
+            mkdirp: true
+        }, (err, result) => {
+            if (err)
+                reject(err);
+            else {
+                const xlsxTransaction = (filePath) => {
+                    const xlsx_file = new TransactionFile(filePath);
+                    let timeNumber = String(new Date().getTime());
+                    let pos = timeNumber.length - 6;
+                    resolve({
+                        dataFile: xlsx_file.data,
+                        filePath: xlsx_file.filePath,
+                        insurer: insurer,
+                        idInsurer: insurer_id,
+                        type: type_id,
+                        reference: ''.concat(`${type_id}`, timeNumber.substring(pos))
+                    });
+                };
+
+                if (extension.toLowerCase() === 'pdf') {
+                    PDF.toXLSX(newFilePath, null)
+                        .then(outFilePath => {
+                            newFilePath = outFilePath;
+                            xlsxTransaction(newFilePath);
+                        })
+                        .catch(reason => reject(reason));
+                } else {
+                    xlsxTransaction(newFilePath);
+                }
+            }
+        });
+
+    });
+}
+
+function addInsurer(param) {
+
+    const short_name = param.body.short_name;
+    const description = param.body.description;
+    const dues = parseFloat(param.body.dues);
+    const regles = parseFloat(param.body.regles);
+
+    const file_ = param.file;
+
+    const names = file_.originalname.split('.');
+    const extension = names[names.length - 1];
+    const tmp_path = file_.path;
+    const newFilePath = `data/picture/${short_name}/${short_name}_${new Date().getTime()}.${extension}`;
+
+    return new Promise((resolve, reject) => {
+        mv(tmp_path, newFilePath, {
+            mkdirp: true
+        }, (err, result) => {
+            if (err)
+                reject(err);
+            else {
+
+                Insurer.create({
+                    short_name: short_name,
+                    description: description,
+                    image_path: newFilePath,
+                    dues: dues,
+                    regles: regles,
+                }).then(insurer => {
+                    resolve(insurer)
+                }).catch(err => {
+                    reject(err)
+                })
+            }
+        });
+    });
+
+}
+
+class User extends Model {
+}
+
+User.init({
+    // attributes
+    password: {
+        type: Sequelize.STRING(50),
+        allowNull: false
+    },
+    username: {
+        type: Sequelize.STRING(50),
+        allowNull: false,
+        unique: true
+    },
+    displayed_name: {
+        type: Sequelize.STRING(50),
+        allowNull: false
+    },
+    registration_date: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: new Date()
+    },
+    image_path: {
+        type: Sequelize.STRING(1000),
+        allowNull: true
+    }
+}, {
+    sequelize,
+    modelName: 'users',
+    timestamps: false
+});
+
+class Company extends Model {
+}
+
+Company.init({
+    short_name: {
+        type: Sequelize.STRING(50),
+        allowNull: true,
+        unique: true
+    },
+    head_office: {
+        type: Sequelize.STRING(50),
+        allowNull: true,
+        unique: true
+    },
+}, {
+    sequelize,
+    modelName: 'companies',
+    timestamps: false
+});
+
+User.belongsTo(Company, {foreignKey: 'company_id'});
+
+class TransactionType extends Model {
+}
+
+TransactionType.init({
+    intitule: {
+        type: Sequelize.STRING(50),
+        allowNull: false,
+        unique: true
+    }
+}, {
+    sequelize,
+    modelName: 'transaction_types',
+    timestamps: false
+});
+
+
+class Insurer extends Model {
+}
+
+Insurer.init({
+    short_name: {
+        type: Sequelize.STRING(50),
+        allowNull: false,
+        unique: true
+    },
+    description: {
+        type: Sequelize.STRING(50),
+        allowNull: false,
+        unique: true
+    },
+    image_path: {
+        type: Sequelize.STRING(1000),
+        allowNull: true
+    },
+    dues: {
+        type: Sequelize.DECIMAL,
+        allowNull: false
+    },
+    regles: {
+        type: Sequelize.DECIMAL,
+        allowNull: false
+    }
+}, {
+    sequelize,
+    modelName: 'insurers',
+    timestamps: false
+});
+
+
+class Transaction extends Model {
+
+}
+
+Transaction.init({
+    reference: {
+        type: Sequelize.STRING(50),
+        allowNull: false,
+        unique: true
+    },
+    creation_date: {
+        type: Sequelize.DATE,
+        allowNull: false,
+        defaultValue: new Date()
+    },
+    amount: {
+        type: Sequelize.DECIMAL,
+        allowNull: false
+    },
+    last_update: {
+        type: Sequelize.DATE,
+        allowNull: true,
+        defaultValue: new Date()
+    }
+}, {
+    sequelize,
+    modelName: 'transactions',
+    timestamps: false
+
+});
+
+Transaction.belongsTo(User, {foreignKey: 'user_id'});
+Transaction.belongsTo(TransactionType, {foreignKey: 'transaction_type_id'});
+Transaction.belongsTo(Insurer, {foreignKey: 'insurer_id'});
+
+class File extends Model {
+}
+
+File.init({
+    path_file: {
+        type: Sequelize.STRING(1000),
+        allowNull: false
+    },
+    data_file: {
+        type: Sequelize.TEXT,
+        allowNull: false
+    },
+    columns: {
+        type: Sequelize.TEXT,
+        allowNull: false
+    }
+}, {
+    sequelize,
+    modelName: 'files',
+    timestamps: false
+});
+
+File.belongsTo(Transaction, {foreignKey: 'id_transaction'});
+Transaction.hasOne(File, {foreignKey: 'id_transaction'});
